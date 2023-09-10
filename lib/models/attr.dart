@@ -4,18 +4,20 @@ class Attr {
   final String def;
   final bool isUnique;
   final bool isPrivate;
+  final bool canNull;
 
   String get sqlType => switch (type) {
         (int) => 'INTEGER',
         (double) => 'REAL',
         (String) => 'TEXT',
+        (List) => 'BLOB',
         (_) => throw Exception(
             'Unknown type',
           ),
       };
 
   String get sqlDefinition =>
-      "'$name' $sqlType ${def.isNotEmpty ? 'DEFAULT $def ' : ''} ${isUnique ? 'UNIQUE' : ''} NOT NULL";
+      "'$name' $sqlType ${def.isNotEmpty ? 'DEFAULT $def ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
 
   @override
   String toString() => '$sqlDefinition ';
@@ -25,6 +27,7 @@ class Attr {
     this.type, {
     this.isUnique = false,
     this.isPrivate = false,
+    this.canNull = false,
     this.def = '',
   });
 }

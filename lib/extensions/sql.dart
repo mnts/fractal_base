@@ -64,20 +64,23 @@ extension SqlFractalExt on FractalCtrl {
 
   bool get _isMain => runtimeType == FractalCtrl;
 
-  _insertion(FractalCtrl c, List<Object?> list) => query("""
+  _insertion(FractalCtrl c, List<Object?> list) => query(
+      """
 INSERT INTO ${c.name} (
   ${c.attributes.map((attr) => "'${attr.name}'").join(',')}${!c._isMain ? ',id_fractal' : ''}
 ) 
 VALUES (
   ${c.attributes.map((e) => '?').join(',')}${!c._isMain ? ',$fid' : ''}
 );
-  """, list);
+  """,
+      list);
 
   TableF _initTable() {
     //_columns();
 
     //final ctrl = controllers.firstOrNull;
-    query("""
+    query(
+        """
 CREATE TABLE IF NOT EXISTS $name (
   id INTEGER PRIMARY KEY,
   ${attributes.map((attr) => attr.sqlDefinition).join(',\n')}
@@ -114,13 +117,15 @@ CREATE TABLE IF NOT EXISTS $name (
 
     for (final ctrl in controllers) {
       final cname = ctrl.name;
-      query.add('''
+      query.add(
+          '''
         INNER JOIN $cname ON 
         $cname.id_fractal = $name.id_fractal
         ''');
     }
 
-    query.add('''
+    query.add(
+        '''
       INNER JOIN fractal ON 
       $name.id_fractal = fractal.id AND fractal.type = '$name'
     ''');

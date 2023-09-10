@@ -20,9 +20,7 @@ class DBF {
     //clear();
     tables.firstWhere(
       (t) => t.name == 'variables',
-      orElse: () {
-        return initVars();
-      },
+      orElse: () => initVars(),
     );
   }
 
@@ -32,11 +30,14 @@ class DBF {
   }
 
   operator []=(String key, dynamic val) {
-    db.execute("INSERT OR REPLACE INTO variables VALUES(?,?,?);", [
-      key,
-      (val is String) ? val : '',
-      (val is int) ? val : 0,
-    ]);
+    db.execute(
+      "INSERT OR REPLACE INTO variables VALUES(?,?,?);",
+      [
+        key,
+        (val is String) ? val : '',
+        (val is int) ? val : 0,
+      ],
+    );
     final frac = StoredFrac.map[key];
     frac?.value = val;
     frac?.notifyListeners();
@@ -53,8 +54,6 @@ class DBF {
       ),
     )
   ];
-
-  setVal(String, key, String val) {}
 
   operator [](String key) {
     final re = db.select(
