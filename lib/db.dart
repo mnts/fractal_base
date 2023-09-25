@@ -17,6 +17,7 @@ class DBF {
       isWeb ? name : join(FileF.path, '$name.db'),
     );
 
+    //db.execute('END;');
     //clear();
     tables.firstWhere(
       (t) => t.name == 'variables',

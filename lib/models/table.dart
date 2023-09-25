@@ -7,9 +7,7 @@ class TableF {
   TableF({
     required this.name,
     this.attributes = const [],
-  }) {
-    print('table $name');
-  }
+  }) {}
 
   static final map = <String, TableF>{};
 }

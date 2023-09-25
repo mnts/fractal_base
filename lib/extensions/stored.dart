@@ -8,8 +8,8 @@ extension FractalStoredC on FractalC {
   CommonDatabase get db => dbf.db;
 
   void query(String sql, [List<Object?> parameters = const []]) {
-    print(sql);
-    print(parameters);
+    //print(sql);
+    //print(parameters);
     db.execute(sql, parameters);
   }
 
@@ -17,8 +17,8 @@ extension FractalStoredC on FractalC {
     String sql, [
     List<Object?> parameters = const [],
   ]) {
-    print('prepare');
-    print(sql);
+    //print('prepare');
+    //print(sql);
     return db.prepare(sql);
   }
 }

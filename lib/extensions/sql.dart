@@ -21,70 +21,78 @@ extension SqlFractalExt on FractalCtrl {
       )
       .toList();
 
-  List<FractalCtrl> get controllers {
-    final ctrls = <FractalCtrl>[this];
-
-    while (ctrls.last.extend is FractalCtrl) {
-      ctrls.add(ctrls.last.extend as FractalCtrl);
-    }
-    return ctrls.sublist(1, ctrls.length - 1);
-  }
-
   static int fid = 0;
   int store(MP map) {
     // upsert
 
-    db.execute("BEGIN;");
-    _insertion(
-      Fractal.controller,
-      Fractal.controller.listValues(map),
-    );
-    map['id'] = fid = db.lastInsertRowId;
+    try {
+      db.execute("BEGIN;");
 
-    //query(INSERT OR REPLACE INTO variables VALUES ('fid', last_insert_rowid()););
-    final ctrls = controllers;
-    for (final ctrl in ctrls.reversed) {
       _insertion(
-        ctrl,
-        ctrl.listValues(map),
+        Fractal.controller,
+        Fractal.controller.listValues(map),
       );
+      map['id'] = fid = db.lastInsertRowId;
+
+      //query(INSERT OR REPLACE INTO variables VALUES ('fid', last_insert_rowid()););
+      final ctrls = controllers;
+      for (final ctrl in ctrls.reversed) {
+        _insertion(
+          ctrl,
+          ctrl.listValues(map),
+        );
+      }
+
+      _insertion(this, listValues(map));
+
+      db.execute("COMMIT;");
+    } catch (err) {
+      print(err);
+      db.execute("END;");
     }
 
-    _insertion(this, listValues(map));
-
-    db.execute("COMMIT;");
     //'INSERT INTO $name (${map.keys.join(',')}) VALUES (${map.keys.map((e) => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${map.keys.map((e) => '$e=?').join(',')}',
+    /*
     print(
       '$name#$fid stored ${ctrls.map((c) => c.attributes.map((a) => a.name).join(',')).join(';')}',
     );
     print(map);
-
+    */
     return fid;
   }
 
   bool get _isMain => runtimeType == FractalCtrl;
 
-  _insertion(FractalCtrl c, List<Object?> list) => query(
-      """
+  _insertion(FractalCtrl c, List<Object?> list) {
+    final l = c.attributes.isNotEmpty ? ',' : '';
+    final ins = <(String, Object)>[];
+    for (int i = 0; i < c.attributes.length; i++) {
+      if (list[i] != null) {
+        ins.add((c.attributes[i].name, list[i]!));
+      }
+    }
+
+    return query("""
 INSERT INTO ${c.name} (
-  ${c.attributes.map((attr) => "'${attr.name}'").join(',')}${!c._isMain ? ',id_fractal' : ''}
+  ${ins.map((attr) => "'${attr.$1}'").join(',')}${!c._isMain ? '${l}id_fractal' : ''}
 ) 
 VALUES (
-  ${c.attributes.map((e) => '?').join(',')}${!c._isMain ? ',$fid' : ''}
+  ${ins.map((e) => '?').join(',')}${!c._isMain ? '$l$fid' : ''}
 );
-  """,
-      list);
+  """, ins.map((i) => i.$2).toList());
+  }
 
   TableF _initTable() {
+    final l = attributes.isNotEmpty ? ',' : '';
+
     //_columns();
 
     //final ctrl = controllers.firstOrNull;
-    query(
-        """
+    query("""
 CREATE TABLE IF NOT EXISTS $name (
   id INTEGER PRIMARY KEY,
   ${attributes.map((attr) => attr.sqlDefinition).join(',\n')}
-  ${runtimeType != FractalCtrl ? """,
+  ${runtimeType != FractalCtrl ? """$l
     'id_fractal' INTEGER NOT NULL,
     FOREIGN KEY(id_fractal) REFERENCES fractal(id)
   """ : ""}
@@ -101,7 +109,6 @@ CREATE TABLE IF NOT EXISTS $name (
     final pragma = db.select('''
       PRAGMA table_info($name)
     ''');
-    print(pragma);
   }
 
   _removeTable() {
@@ -117,15 +124,13 @@ CREATE TABLE IF NOT EXISTS $name (
 
     for (final ctrl in controllers) {
       final cname = ctrl.name;
-      query.add(
-          '''
+      query.add('''
         INNER JOIN $cname ON 
         $cname.id_fractal = $name.id_fractal
-        ''');
+      ''');
     }
 
-    query.add(
-        '''
+    query.add('''
       INNER JOIN fractal ON 
       $name.id_fractal = fractal.id AND fractal.type = '$name'
     ''');
