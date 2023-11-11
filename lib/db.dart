@@ -17,6 +17,7 @@ class DBF {
       isWeb ? name : join(FileF.path, '$name.db'),
     );
 
+    db.execute('PRAGMA foreign_keys=OFF;');
     //db.execute('END;');
     //clear();
     tables.firstWhere(

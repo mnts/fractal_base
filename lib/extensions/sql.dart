@@ -8,7 +8,11 @@ import '../models/table.dart';
 
 extension SqlFractalExt on FractalCtrl {
   TableF initSql() => dbf.tables.firstWhere(
-        (t) => t.name == name,
+        (t) {
+          final found = t.name == name;
+          if (found) _columns();
+          return found;
+        },
         orElse: () => _initTable(),
       );
   //_columns();
@@ -94,10 +98,11 @@ CREATE TABLE IF NOT EXISTS $name (
   ${attributes.map((attr) => attr.sqlDefinition).join(',\n')}
   ${runtimeType != FractalCtrl ? """$l
     'id_fractal' INTEGER NOT NULL,
-    FOREIGN KEY(id_fractal) REFERENCES fractal(id)
+    FOREIGN KEY(id_fractal) REFERENCES fractal(id) ON DELETE CASCADE
   """ : ""}
 )
     """);
+    print('Create table $name(${attributes.join(',')})');
     return TableF(
       name: name,
       attributes: attributes,
@@ -109,6 +114,16 @@ CREATE TABLE IF NOT EXISTS $name (
     final pragma = db.select('''
       PRAGMA table_info($name)
     ''');
+    final cols = pragma.rows.map((row) => row[1]);
+    for (var attr in attributes) {
+      if (!cols.contains(attr.name)) {
+        _addColumn(attr);
+      }
+    }
+  }
+
+  _addColumn(Attr attr) {
+    query('ALTER TABLE $name ADD ${attr.sqlDefinition}');
   }
 
   _removeTable() {
