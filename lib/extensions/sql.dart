@@ -132,10 +132,16 @@ CREATE TABLE IF NOT EXISTS $name (
     ''');
   }
 
-  ResultSet select() {
+  from() {}
+
+  ResultSet select({Iterable<int>? only}) {
     //parents;
     final name = this.name;
     final query = <String>["SELECT *, fractal.id as id FROM $name"];
+
+    if (only != null && only.isNotEmpty) {
+      query.add('WHERE id IN(${only.join(',')})');
+    }
 
     for (final ctrl in controllers) {
       final cname = ctrl.name;

@@ -3,6 +3,7 @@ import 'package:fractal/types/file.dart';
 import 'package:path/path.dart';
 import 'package:sqlite3/common.dart';
 import 'fracs/stored.dart';
+import 'fractals/device.dart';
 import 'models/table.dart';
 import 'unsupported.dart'
     if (dart.library.ffi) 'native.dart'
@@ -29,6 +30,8 @@ class DBF {
   static late CommonSqlite3 sqlite;
   static FutureOr<void> initiate() async {
     sqlite = await constructDb();
+
+    DeviceFractal.controller.init();
   }
 
   operator []=(String key, dynamic val) {
