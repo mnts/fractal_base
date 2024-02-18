@@ -1,10 +1,5 @@
 import 'package:fractal/fractal.dart';
-import 'package:fractal_base/extensions/stored.dart';
-import 'package:signed_fractal/controllers/events.dart';
-import 'package:signed_fractal/models/event.dart';
 import 'package:sqlite3/common.dart';
-
-import '../models/table.dart';
 
 extension SqlFractalExt on FractalCtrl {
   TableF initSql() => dbf.tables.firstWhere(
@@ -27,8 +22,7 @@ extension SqlFractalExt on FractalCtrl {
 
   static int fid = 0;
   int store(MP map) {
-    // upsert
-
+    //print(map);
     try {
       db.execute("BEGIN;");
 
@@ -134,30 +128,99 @@ CREATE TABLE IF NOT EXISTS $name (
 
   from() {}
 
-  ResultSet select({Iterable<int>? only}) {
+  static String _str(Object o) => switch (o) {
+        String s => '\'$s\'',
+        num s => '$s',
+        _ => throw 'Wrong type ($o)',
+      };
+
+  static String assoc(MP attr, String? pre) {
+    return attr.entries.map((w) {
+      String key = "${pre != null ? '`$pre`.' : ''}`${w.key}`";
+      return switch (w.value) {
+        List l => '$key IN(${l.map(
+              (s) => _str(s),
+            ).join(',')})',
+        String s when s.isNotEmpty && s[0] == '%' => '$key LIKE ${_str(s)}',
+        var s when s is String || s is num => '$key = ${_str(s)}',
+        _ => '',
+      };
+    }).join(' AND ');
+  }
+
+  /*
+  selectType(dynamic h) {
+    final row = switch (h) {
+      String s => select(
+          limit: 1,
+          subWhere: {
+            'event': {'hash': s}
+          },
+        )[0]['type'],
+      int i => i,
+      _ => throw 'Wrong type ($h)',
+    };
+  }
+  */
+
+  String makeWhere(where, [String? pre]) => switch (where) {
+        MP m => assoc(m, pre),
+        List<MP> l => l.map((m) => '(${assoc(m, pre)})').join(' AND '),
+        _ => '',
+      };
+
+  ResultSet select({
+    Iterable<String>? fields,
+    Map<String, Object?>? subWhere,
+    //Object? where,
+    int limit = 0,
+    bool includeSubTypes = false,
+  }) {
     //parents;
     final name = this.name;
-    final query = <String>["SELECT *, fractal.id as id FROM $name"];
-
-    if (only != null && only.isNotEmpty) {
-      query.add('WHERE id IN(${only.join(',')})');
-    }
+    final q = <String>[
+      "SELECT ${fields?.join(',') ?? '*'}, fractal.id AS id FROM $name",
+    ];
 
     for (final ctrl in controllers) {
       final cname = ctrl.name;
-      query.add('''
+      final w = subWhere?[cname];
+      String sw = (w != null) ? makeWhere(w, cname) : '';
+      q.add('''
         INNER JOIN $cname ON 
         $cname.id_fractal = $name.id_fractal
+        ${sw.isNotEmpty ? 'AND $sw' : ''}
       ''');
     }
 
-    query.add('''
+    final w = subWhere?['fractal'];
+    String fw = (w != null)
+        ? makeWhere(
+            w,
+            'fractal',
+          )
+        : '';
+
+    q.add('''
       INNER JOIN fractal ON 
-      $name.id_fractal = fractal.id AND fractal.type = '$name'
+      $name.id_fractal = fractal.id
+      ${fw.isNotEmpty ? 'AND $fw' : ''}
+    ${includeSubTypes ? '' : "AND fractal.type = '$name'"}
     ''');
 
+    final wh = subWhere?[name];
+    String hw = (wh != null) ? makeWhere(wh, name) : '';
+    if (hw.isNotEmpty) q.add('WHERE $hw');
+
+    if (limit > 0) {
+      q.add('''
+        LIMIT $limit
+      ''');
+    }
+
+    final query = q.join('\n');
     final rows = db.select(
-      query.join('\n'),
+      query,
     );
 
     return rows;

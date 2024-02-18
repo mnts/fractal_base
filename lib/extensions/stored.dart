@@ -1,4 +1,5 @@
 import 'package:fractal/c.dart';
+import 'package:fractal/lib.dart';
 import 'package:sqlite3/common.dart';
 
 import '../db.dart';
@@ -8,8 +9,6 @@ extension FractalStoredC on FractalC {
   CommonDatabase get db => dbf.db;
 
   void query(String sql, [List<Object?> parameters = const []]) {
-    print(sql);
-    print(parameters);
     db.execute(sql, parameters);
   }
 

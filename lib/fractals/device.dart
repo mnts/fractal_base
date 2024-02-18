@@ -1,3 +1,4 @@
+import 'package:fractal/utils/random.dart';
 import 'package:signed_fractal/signed_fractal.dart';
 
 class DeviceCtrl<T extends DeviceFractal> extends NodeCtrl<T> {
@@ -5,18 +6,11 @@ class DeviceCtrl<T extends DeviceFractal> extends NodeCtrl<T> {
     super.name = 'device',
     required super.make,
     required super.extend,
-    super.attributes = const [
-      Attr(
-        'eth',
-        String,
-        canNull: true,
-      ),
-      ...SigningMix.attributes,
-    ],
+    required super.attributes,
   });
 
   @override
-  final icon = IconF(0xe481);
+  final icon = IconF(0xe471);
 }
 
 class DeviceFractal extends NodeFractal with SigningMix {
@@ -27,11 +21,32 @@ class DeviceFractal extends NodeFractal with SigningMix {
       MP() => DeviceFractal.fromMap(d),
       Object() || null => throw ('wrong event type')
     },
+    attributes: [
+      Attr(
+        name: 'eth',
+        format: 'TEXT',
+        canNull: true,
+      ),
+      ...SigningMix.attributes,
+    ],
     extend: NodeFractal.controller,
   );
 
   @override
   DeviceCtrl get ctrl => controller;
+
+  static init() {
+    controller.init();
+    my = DeviceFractal.fromMap({
+      'name': DBF.main['device'] ??= getRandomString(8),
+      'createdAt': 2,
+      'pubkey': '',
+    })
+      ..synch();
+  }
+
+  late final KeyPair keyPair;
+  static late DeviceFractal my;
 
   String? eth;
 
@@ -43,9 +58,7 @@ class DeviceFractal extends NodeFractal with SigningMix {
     super.keyPair,
     super.extend,
     required super.name,
-  }) {
-    signing();
-
+  }) : keyPair = SigningMix.signing() {
     map.complete(name, this);
   }
 
@@ -56,8 +69,8 @@ class DeviceFractal extends NodeFractal with SigningMix {
 
   DeviceFractal.fromMap(MP d)
       : eth = d['eth'],
+        keyPair = SigningMix.signingFromMap(d),
         super.fromMap(d) {
-    signingFromMap(d);
     map.complete(name, this);
   }
 
