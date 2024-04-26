@@ -34,12 +34,11 @@ class Attr extends NodeFractal {
   AttrCtrl get ctrl => controller;
 
   @override
-  get hashData => [...super.hashData, format];
-  @override
   String get type => 'attribute';
 
   final String format;
   final String def;
+  final bool isImmutable;
   final bool isUnique;
   final bool isPrivate;
   final bool canNull;
@@ -66,12 +65,13 @@ class Attr extends NodeFractal {
     this.isUnique = false,
     this.isPrivate = false,
     this.canNull = false,
+    this.isImmutable = false,
     this.def = '',
     super.to,
   }) {
     createdAt = 1;
     //owner = null;
-    hash = Hashed.makeHash(hashData);
+    //hash = Hashed.make(ctrl.hashData());
   }
 
   Attr.fromMap(super.d)
@@ -79,6 +79,7 @@ class Attr extends NodeFractal {
         def = d['def'],
         isUnique = d['isUnique'],
         isPrivate = d['isPrivate'],
+        isImmutable = d['isImmutable'],
         canNull = d['canNull'],
         super.fromMap();
 

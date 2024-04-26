@@ -62,11 +62,6 @@ class DeviceFractal extends NodeFractal with SigningMix {
     map.complete(name, this);
   }
 
-  @override
-  get hashData => [
-        ...super.hashData,
-      ];
-
   DeviceFractal.fromMap(MP d)
       : eth = d['eth'],
         keyPair = SigningMix.signingFromMap(d),
