@@ -2,42 +2,68 @@ import 'dart:async';
 import 'package:fractal/types/file.dart';
 import 'package:path/path.dart';
 import 'package:sqlite3/common.dart';
+import 'access/abstract.dart';
+import 'access/native.dart';
 import 'fracs/stored.dart';
 import 'fractals/device.dart';
 import 'models/attr.dart';
 import 'models/table.dart';
-import 'unsupported.dart'
-    if (dart.library.ffi) 'native.dart'
-    if (dart.library.html) 'web.dart';
+import 'access/unsupported.dart'
+    if (dart.library.ffi) 'access/native.dart'
+    if (dart.library.html) 'access/web.dart';
 
 class DBF {
   static final main = DBF();
   static bool isWeb = false;
-  late CommonDatabase db;
+  late FDBA db;
   DBF([String name = 'fractal']) {
-    db = sqlite.open(
-      isWeb ? name : join(FileF.path, '$name.db'),
-    );
+    db = NativeFDB(name);
 
-    db.execute('PRAGMA foreign_keys=OFF;');
     //db.execute('END;');
+  }
+
+  Future<bool> init() async {
+    await db.connect();
+
+    //db = SqliteDatabase(path: 'test.db');
+
+    await db.query('PRAGMA foreign_keys=OFF;');
+
     //clear();
-    tables.firstWhere(
-      (t) => t.name == 'variables',
-      orElse: () => initVars(),
-    );
+    if (tables
+        .where(
+          (t) => t.name == 'variables',
+        )
+        .isEmpty) {
+      await initVars();
+    }
+
+    final tbls = await db.select('''
+      SELECT name FROM sqlite_schema WHERE 
+      type ='table' AND 
+      name NOT LIKE 'sqlite_%';
+    ''');
+
+    for (var row in tbls) {
+      tables.add(
+        TableF(
+          name: row.values.first as String,
+        ),
+      );
+    }
+    return true;
   }
 
-  static late CommonSqlite3 sqlite;
-  static FutureOr<void> initiate() async {
-    sqlite = await constructDb();
-
-    Attr.controller.init();
-    DeviceFractal.init();
+  //static late CommonSqlite3 sqlite;
+  static FutureOr<bool> initiate() async {
+    await main.init();
+    await Attr.controller.init();
+    await DeviceFractal.init();
+    return true;
   }
 
-  operator []=(String key, dynamic val) {
-    db.execute(
+  Future<void> setVar(String key, dynamic val) async {
+    await db.query(
       "INSERT OR REPLACE INTO variables VALUES(?,?,?);",
       [
         key,
@@ -50,20 +76,10 @@ class DBF {
     frac?.notifyListeners();
   }
 
-  late final tables = <TableF>[
-    ...db.select('''
-      SELECT name FROM sqlite_schema WHERE 
-      type ='table' AND 
-      name NOT LIKE 'sqlite_%';
-    ''').map(
-      (row) => TableF(
-        name: row.values.first as String,
-      ),
-    )
-  ];
+  final tables = <TableF>[];
 
-  operator [](String key) {
-    final re = db.select(
+  Future<String?> getVar(String key) async {
+    final re = await db.select(
       "SELECT value, numb FROM 'variables' WHERE name=?",
       [key],
     );
@@ -72,8 +88,8 @@ class DBF {
     return (str.isEmpty) ? re.first['numb'] : re.first['value'];
   }
 
-  clear() {
-    db.execute('''
+  clear() async {
+    db.query('''
       PRAGMA writable_schema = 1;
       DELETE FROM sqlite_master;
       PRAGMA writable_schema = 0;
@@ -82,8 +98,8 @@ class DBF {
     ''');
   }
 
-  TableF initVars() {
-    db.execute("""
+  Future<TableF> initVars() async {
+    await db.query("""
       CREATE TABLE IF NOT EXISTS 'variables' 
       (name TEXT PRIMARY KEY, value TEXT, numb INTEGER);
     """);

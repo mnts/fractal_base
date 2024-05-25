@@ -35,10 +35,15 @@ class DeviceFractal extends NodeFractal with SigningMix {
   @override
   DeviceCtrl get ctrl => controller;
 
-  static init() {
+  static init() async {
     controller.init();
+    var name = (await DBF.main.getVar('device'));
+    if (name == null) {
+      name = getRandomString(8);
+      await DBF.main.setVar('device', name);
+    }
     my = DeviceFractal.fromMap({
-      'name': DBF.main['device'] ??= getRandomString(8),
+      'name': name,
       'createdAt': 2,
       'pubkey': '',
     })
@@ -73,10 +78,11 @@ class DeviceFractal extends NodeFractal with SigningMix {
         'eth': eth,
         ...signingMap,
       };
-
+/*
   synch() {
     super.synch();
   }
+*/
 
   @override
   MP toMap() => {

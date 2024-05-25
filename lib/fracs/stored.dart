@@ -10,9 +10,9 @@ class StoredFrac extends Frac<Object> {
   ) =>
       map[name] ??= StoredFrac._(name, iniVal);
 
-  @override
-  set value(val) {
-    DBF.main[name] = val;
+  Future<void> setValue(val) async {
+    await DBF.main.setVar(name, val);
+    super.value = val;
   }
 
   String name;

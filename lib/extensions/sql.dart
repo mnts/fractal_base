@@ -1,8 +1,20 @@
+import 'dart:math';
 import 'package:fractal/fractal.dart';
-import 'package:sqlite3/common.dart';
+
+import '../access/abstract.dart';
 
 extension SqlFractalExt on FractalCtrl {
-  TableF initSql() => dbf.tables.firstWhere(
+  Future<TableF> initSql() async {
+    for (var t in dbf.tables) {
+      if (t.name == name) {
+        await _columns();
+        return t;
+      }
+    }
+
+    return _initTable();
+/*
+dbf.tables.firstWhere(
         (t) {
           final found = t.name == name;
           if (found) _columns();
@@ -10,7 +22,22 @@ extension SqlFractalExt on FractalCtrl {
         },
         orElse: () => _initTable(),
       );
+  */
+  }
+
   //_columns();
+
+  Future<void> initIndexes() async {
+    final pragma = await db.select('''
+      PRAGMA index_list(`$name`)
+    ''');
+    final cols = pragma.map((row) => row[1]);
+    for (var attr in attributes) {
+      if (attr.isIndex && !cols.contains(attr.name)) {
+        _addIndex(attr);
+      }
+    }
+  }
 
   static init() {}
 
@@ -20,33 +47,31 @@ extension SqlFractalExt on FractalCtrl {
       )
       .toList();
 
-  static int fid = 0;
-  int store(MP map) {
+  //static int fid = 0;
+  Future<int> store(MP map) async {
     //print(map);
-    try {
-      db.execute("BEGIN;");
 
+    map['id'] = await db.lastInsertId;
+    final transaction = FTransactionParams([
       _insertion(
         Fractal.controller,
         Fractal.controller.listValues(map),
-      );
-      map['id'] = fid = db.lastInsertRowId;
+      ),
 
       //query(INSERT OR REPLACE INTO variables VALUES ('fid', last_insert_rowid()););
-      final ctrls = controllers;
-      for (final ctrl in ctrls.reversed) {
-        _insertion(
+      //final ctrls = controllers;
+      ...controllers.reversed.map(
+        (ctrl) => _insertion(
           ctrl,
           ctrl.listValues(map),
-        );
-      }
+        ),
+      ),
 
-      _insertion(this, listValues(map));
+      _insertion(this, listValues(map)),
+    ]);
 
-      db.execute("COMMIT;");
-    } catch (err) {
-      print(err);
-      db.execute("END;");
+    if (await db.store(transaction) case int id) {
+      return id;
     }
 
     //'INSERT INTO $name (${map.keys.join(',')}) VALUES (${map.keys.map((e) => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${map.keys.map((e) => '$e=?').join(',')}',
@@ -56,12 +81,12 @@ extension SqlFractalExt on FractalCtrl {
     );
     print(map);
     */
-    return fid;
+    return 0;
   }
 
   bool get _isMain => runtimeType == FractalCtrl;
 
-  _insertion(FractalCtrl c, List<Object?> list) {
+  FStatementParams _insertion(FractalCtrl c, List<Object?> list) {
     final l = c.attributes.isNotEmpty ? ',' : '';
     final ins = <(String, Object)>[];
     for (int i = 0; i < c.attributes.length; i++) {
@@ -70,24 +95,24 @@ extension SqlFractalExt on FractalCtrl {
       }
     }
 
-    return query("""
-INSERT INTO ${c.name} (
+    return FStatementParams("""
+INSERT INTO `${c.name}` (
   ${ins.map((attr) => "'${attr.$1}'").join(',')}${!c._isMain ? '${l}id_fractal' : ''}
 ) 
 VALUES (
-  ${ins.map((e) => '?').join(',')}${!c._isMain ? '$l$fid' : ''}
+  ${ins.map((e) => '?').join(',')}${!c._isMain ? '$l?' : ''}
 );
   """, ins.map((i) => i.$2).toList());
   }
 
-  TableF _initTable() {
+  Future<TableF> _initTable() async {
     final l = attributes.isNotEmpty ? ',' : '';
 
     //_columns();
 
     //final ctrl = controllers.firstOrNull;
-    query("""
-CREATE TABLE IF NOT EXISTS $name (
+    await query("""
+CREATE TABLE IF NOT EXISTS `$name` (
   id INTEGER PRIMARY KEY,
   ${attributes.map((attr) => attr.sqlDefinition).join(',\n')}
   ${runtimeType != FractalCtrl ? """$l
@@ -96,7 +121,7 @@ CREATE TABLE IF NOT EXISTS $name (
   """ : ""}
 )
     """);
-    print('Create table $name(${attributes.join(',')})');
+    print('Create table `$name`(${attributes.join(',')})');
     return TableF(
       name: name,
       attributes: attributes,
@@ -104,25 +129,30 @@ CREATE TABLE IF NOT EXISTS $name (
     //${ctrl != null ? ",'id_${ctrl.name}' INTEGER NOT NULL" : ''}
   }
 
-  _columns() {
-    final pragma = db.select('''
-      PRAGMA table_info($name)
+  Future<bool> _columns() async {
+    final pragma = await db.select('''
+      PRAGMA table_info(`$name`)
     ''');
-    final cols = pragma.rows.map((row) => row[1]);
+    final cols = pragma.map((row) => row[1]);
     for (var attr in attributes) {
       if (!cols.contains(attr.name)) {
         _addColumn(attr);
       }
     }
+    return true;
   }
 
-  _addColumn(Attr attr) {
-    query('ALTER TABLE $name ADD ${attr.sqlDefinition}');
+  Future<bool> _addIndex(Attr attr) async => await query(
+        'CREATE ${attr.isUnique ? 'UNIQUE' : ''} INDEX `${attr.name}` ON `$name`(`${attr.name}`)',
+      );
+
+  Future<bool> _addColumn(Attr attr) async {
+    return await query('ALTER TABLE `$name` ADD ${attr.sqlDefinition}');
   }
 
   _removeTable() {
-    dbf.db.execute('''
-      DROP TABLE IF EXISTS $name
+    dbf.db.query('''
+      DROP TABLE IF EXISTS `$name`
     ''');
   }
 
@@ -141,6 +171,16 @@ CREATE TABLE IF NOT EXISTS $name (
         List l => '$key IN(${l.map(
               (s) => _str(s),
             ).join(',')})',
+        Map m => m.entries
+            .map((e) => switch (e.key) {
+                  'gt' => '$key > ${_str(e.value)}',
+                  'gte' => '$key >= ${_str(e.value)}',
+                  'lt' => '$key < ${_str(e.value)}',
+                  'lte' => '$key <= ${_str(e.value)}',
+                  _ => '',
+                })
+            .join(' AND '),
+        bool b => '$key IS ${b ? 'NOT ' : ''}NULL',
         String s when s.isNotEmpty && s[0] == '%' => '$key LIKE ${_str(s)}',
         var s when s is String || s is num => '$key = ${_str(s)}',
         _ => '',
@@ -163,66 +203,122 @@ CREATE TABLE IF NOT EXISTS $name (
   }
   */
 
-  String makeWhere(where, [String? pre]) => switch (where) {
+  static String makeWhere(where, [String? pre]) => switch (where) {
         MP m => assoc(m, pre),
         List<MP> l => l.map((m) => '(${assoc(m, pre)})').join(' AND '),
         _ => '',
       };
 
-  ResultSet select({
+  Future<bool> update(MP m, int id) async {
+    await query(
+      'UPDATE `$name` SET ${m.keys.map((e) => '$e = ?').join(',')} WHERE id_fractal=?',
+      [...m.values, id],
+    );
+    return true;
+  }
+
+  Future<List<MP>> select({
     Iterable<String>? fields,
-    Map<String, Object?>? subWhere,
-    //Object? where,
-    int limit = 0,
+    //Map<String, Object?>? subWhere,
+    MP? where,
+    int limit = 1000,
+    Map<String, bool>? order,
     bool includeSubTypes = false,
-  }) {
+  }) async {
     //parents;
+    final MP w = {
+      ...?where,
+    };
+
     final name = this.name;
     final q = <String>[
-      "SELECT ${fields?.join(',') ?? '*'}, fractal.id AS id FROM $name",
+      "SELECT ${fields?.join(',') ?? '*'}, fractal.id AS id FROM `$name`",
     ];
 
     for (final ctrl in controllers) {
-      final cname = ctrl.name;
-      final w = subWhere?[cname];
-      String sw = (w != null) ? makeWhere(w, cname) : '';
+      MP tableWhere = {};
+      w.removeWhere((key, value) {
+        if (ctrl.attributes.any((attr) => attr.name == key)) {
+          tableWhere[key] = value;
+          return true;
+        }
+        return false;
+      });
+
+      String sw = (tableWhere.entries.isNotEmpty)
+          ? makeWhere(
+              tableWhere,
+              ctrl.name,
+            )
+          : '';
       q.add('''
-        INNER JOIN $cname ON 
-        $cname.id_fractal = $name.id_fractal
+        INNER JOIN `${ctrl.name}` ON 
+        `${ctrl.name}`.id_fractal = `$name`.id_fractal
         ${sw.isNotEmpty ? 'AND $sw' : ''}
       ''');
     }
 
-    final w = subWhere?['fractal'];
-    String fw = (w != null)
-        ? makeWhere(
-            w,
-            'fractal',
-          )
-        : '';
+    String fw = '';
+    if (w.remove('id') case Object idv) {
+      fw = makeWhere(
+        {'id': idv},
+        'fractal',
+      );
+    }
+
+    /*
+    if (w.isNotEmpty == true) {
+      w.removeWhere((key, value) {
+        q.add('''
+        INNER JOIN `event` AS `attr_event` ON 
+        `attr_event`.`to` = `event`.`hash`
+        INNER JOIN `writer` `attr_writer` ON 
+        `attr_writer`.attr = '$key'
+        INNER JOIN `post` `attr_post` ON 
+        `attr_post`.`content` ${switch (value) {
+          String s => "= '$s'",
+          false => "= ''",
+          _ => "!= ''",
+        }}
+        ''');
+        return true;
+      });
+    }
+    */
 
     q.add('''
       INNER JOIN fractal ON 
-      $name.id_fractal = fractal.id
+      `$name`.id_fractal = fractal.id
       ${fw.isNotEmpty ? 'AND $fw' : ''}
     ${includeSubTypes ? '' : "AND fractal.type = '$name'"}
     ''');
 
-    final wh = subWhere?[name];
-    String hw = (wh != null) ? makeWhere(wh, name) : '';
-    if (hw.isNotEmpty) q.add('WHERE $hw');
-
-    if (limit > 0) {
-      q.add('''
-        LIMIT $limit
-      ''');
+    if (w.entries.isNotEmpty) {
+      final wH = makeWhere(w);
+      if (wH.isNotEmpty) q.add('WHERE ${makeWhere(w)}');
     }
 
+    limit = limit > 0 ? min(limit, maxLimit) : maxLimit;
+
+    if (order != null) {
+      q.add('ORDER BY');
+      order.forEach((key, v) {
+        q.add('`$key` ${v ? 'DESC' : 'ASC'}');
+      });
+    }
+
+    q.add('''
+        LIMIT $limit
+      ''');
+
     final query = q.join('\n');
-    final rows = db.select(
+    //print(query);
+    final rows = await db.select(
       query,
     );
 
     return rows;
   }
+
+  static const maxLimit = 1000;
 }

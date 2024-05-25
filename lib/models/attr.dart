@@ -40,6 +40,7 @@ class Attr extends NodeFractal {
   final String def;
   final bool isImmutable;
   final bool isUnique;
+  final bool isIndex;
   final bool isPrivate;
   final bool canNull;
 
@@ -53,6 +54,12 @@ class Attr extends NodeFractal {
           ),
       };
 
+  Object fromString(String val) => switch (format) {
+        'INTEGER' => int.parse(val),
+        'REAL' => double.parse(val),
+        _ => val,
+      };
+
   String get sqlDefinition =>
       "'$name' $format ${def.isNotEmpty ? 'DEFAULT $def ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
 
@@ -63,6 +70,7 @@ class Attr extends NodeFractal {
     required super.name,
     required this.format,
     this.isUnique = false,
+    this.isIndex = false,
     this.isPrivate = false,
     this.canNull = false,
     this.isImmutable = false,
@@ -78,6 +86,7 @@ class Attr extends NodeFractal {
       : format = d['format'],
         def = d['def'],
         isUnique = d['isUnique'],
+        isIndex = d['isIndex'],
         isPrivate = d['isPrivate'],
         isImmutable = d['isImmutable'],
         canNull = d['canNull'],
