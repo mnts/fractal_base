@@ -3,9 +3,9 @@ import 'package:fractal/types/mp.dart';
 abstract class FDBA {
   String name;
   FDBA(this.name);
-  Future connect();
+  Future<bool> connect();
   Future<int> lastInsertId = Future.value(0);
-  Future store(FTransactionParams transaction);
+  Future<int> store(FTransactionParams transaction);
   Future<bool> query(String sql, [List<Object?> parameters = const []]);
   Future<List<MP>> select(String sql, [List<Object?> parameters = const []]);
 }

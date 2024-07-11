@@ -43,6 +43,7 @@ class Attr extends NodeFractal {
   final bool isIndex;
   final bool isPrivate;
   final bool canNull;
+  final bool skipCreate;
 
   String get sqlType => switch (type) {
         (int) => 'INTEGER',
@@ -61,7 +62,7 @@ class Attr extends NodeFractal {
       };
 
   String get sqlDefinition =>
-      "'$name' $format ${def.isNotEmpty ? 'DEFAULT $def ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
+      "'$name' $format ${!canNull ? 'DEFAULT \'$def\' ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
 
   @override
   String toString() => '$sqlDefinition ';
@@ -74,6 +75,7 @@ class Attr extends NodeFractal {
     this.isPrivate = false,
     this.canNull = false,
     this.isImmutable = false,
+    this.skipCreate = false,
     this.def = '',
     super.to,
   }) {
@@ -86,6 +88,7 @@ class Attr extends NodeFractal {
       : format = d['format'],
         def = d['def'],
         isUnique = d['isUnique'],
+        skipCreate = d['skipCreate'],
         isIndex = d['isIndex'],
         isPrivate = d['isPrivate'],
         isImmutable = d['isImmutable'],

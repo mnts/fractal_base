@@ -10,7 +10,7 @@ class NativeFDB extends FDBA {
   NativeFDB(super.name);
 
   @override
-  Future connect() async {
+  connect() async {
     _db = await AsyncDatabase.open(
       join(FileF.path, "$name.db"),
     );
@@ -25,13 +25,11 @@ class NativeFDB extends FDBA {
   }
 
   @override
-  Future store(FTransactionParams transaction) =>
-      _db.sendCommand("store", body: transaction);
+  store(FTransactionParams transaction) => _db.store(transaction);
 
   @override
-  select(String sql, [List<Object?> parameters = const []]) {
-    return _db.select(sql, parameters);
-  }
+  select(String sql, [List<Object?> parameters = const []]) =>
+      _db.select(sql, parameters);
 
   @override
   Future<int> get lastInsertId async => _db.getLastInsertRowId();

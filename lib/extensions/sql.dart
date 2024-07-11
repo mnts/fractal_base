@@ -12,7 +12,7 @@ extension SqlFractalExt on FractalCtrl {
       }
     }
 
-    return _initTable();
+    return await _initTable();
 /*
 dbf.tables.firstWhere(
         (t) {
@@ -71,6 +71,9 @@ dbf.tables.firstWhere(
     ]);
 
     if (await db.store(transaction) case int id) {
+      print('stored $name');
+      print(map);
+      print('#$id');
       return id;
     }
 
@@ -90,8 +93,9 @@ dbf.tables.firstWhere(
     final l = c.attributes.isNotEmpty ? ',' : '';
     final ins = <(String, Object)>[];
     for (int i = 0; i < c.attributes.length; i++) {
-      if (list[i] != null) {
-        ins.add((c.attributes[i].name, list[i]!));
+      final attr = c.attributes[i];
+      if (list[i] != null && !attr.skipCreate) {
+        ins.add((attr.name, list[i]!));
       }
     }
 
@@ -114,7 +118,7 @@ VALUES (
     await query("""
 CREATE TABLE IF NOT EXISTS `$name` (
   id INTEGER PRIMARY KEY,
-  ${attributes.map((attr) => attr.sqlDefinition).join(',\n')}
+  ${attributes.where((f) => !f.skipCreate).map((attr) => attr.sqlDefinition).join(',\n')}
   ${runtimeType != FractalCtrl ? """$l
     'id_fractal' INTEGER NOT NULL,
     FOREIGN KEY(id_fractal) REFERENCES fractal(id) ON DELETE CASCADE
@@ -164,9 +168,11 @@ CREATE TABLE IF NOT EXISTS `$name` (
         _ => throw 'Wrong type ($o)',
       };
 
-  static String assoc(MP attr, String? pre) {
+  String assoc(MP attr) {
+    final pre = name;
     return attr.entries.map((w) {
-      String key = "${pre != null ? '`$pre`.' : ''}`${w.key}`";
+      String key = "`$pre`.`${w.key}`";
+      final attr = attributes.firstWhere((a) => a.name == w.key);
       return switch (w.value) {
         List l => '$key IN(${l.map(
               (s) => _str(s),
@@ -180,7 +186,10 @@ CREATE TABLE IF NOT EXISTS `$name` (
                   _ => '',
                 })
             .join(' AND '),
-        bool b => '$key IS ${b ? 'NOT ' : ''}NULL',
+        bool b => switch (attr.format) {
+            'TEXT' => "$key ${b ? '!' : ''}= ''",
+            _ => '$key IS ${b ? 'NOT ' : ''}NULL',
+          },
         String s when s.isNotEmpty && s[0] == '%' => '$key LIKE ${_str(s)}',
         var s when s is String || s is num => '$key = ${_str(s)}',
         _ => '',
@@ -203,9 +212,9 @@ CREATE TABLE IF NOT EXISTS `$name` (
   }
   */
 
-  static String makeWhere(where, [String? pre]) => switch (where) {
-        MP m => assoc(m, pre),
-        List<MP> l => l.map((m) => '(${assoc(m, pre)})').join(' AND '),
+  static String makeWhere(where, FractalCtrl ctrl) => switch (where) {
+        MP m => ctrl.assoc(m),
+        List<MP> l => l.map((m) => '(${ctrl.assoc(m)})').join(' AND '),
         _ => '',
       };
 
@@ -221,7 +230,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
     Iterable<String>? fields,
     //Map<String, Object?>? subWhere,
     MP? where,
-    int limit = 1000,
+    int limit = 1200,
     Map<String, bool>? order,
     bool includeSubTypes = false,
   }) async {
@@ -248,7 +257,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
       String sw = (tableWhere.entries.isNotEmpty)
           ? makeWhere(
               tableWhere,
-              ctrl.name,
+              ctrl,
             )
           : '';
       q.add('''
@@ -262,7 +271,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
     if (w.remove('id') case Object idv) {
       fw = makeWhere(
         {'id': idv},
-        'fractal',
+        Fractal.controller,
       );
     }
 
@@ -290,12 +299,12 @@ CREATE TABLE IF NOT EXISTS `$name` (
       INNER JOIN fractal ON 
       `$name`.id_fractal = fractal.id
       ${fw.isNotEmpty ? 'AND $fw' : ''}
-    ${includeSubTypes ? '' : "AND fractal.type = '$name'"}
+      ${includeSubTypes ? '' : "AND fractal.type = '$name'"}
     ''');
 
     if (w.entries.isNotEmpty) {
-      final wH = makeWhere(w);
-      if (wH.isNotEmpty) q.add('WHERE ${makeWhere(w)}');
+      final wH = makeWhere(w, this);
+      if (wH.isNotEmpty) q.add('WHERE $wH');
     }
 
     limit = limit > 0 ? min(limit, maxLimit) : maxLimit;

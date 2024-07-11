@@ -37,17 +37,6 @@ class DeviceFractal extends NodeFractal with SigningMix {
 
   static init() async {
     controller.init();
-    var name = (await DBF.main.getVar('device'));
-    if (name == null) {
-      name = getRandomString(8);
-      await DBF.main.setVar('device', name);
-    }
-    my = DeviceFractal.fromMap({
-      'name': name,
-      'createdAt': 2,
-      'pubkey': '',
-    })
-      ..synch();
   }
 
   late final KeyPair keyPair;

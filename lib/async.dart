@@ -3,9 +3,7 @@ import 'package:logging/logging.dart';
 import 'package:logging_appenders/logging_appenders.dart';
 import 'package:sqlite3/common.dart';
 
-import 'access/unsupported.dart'
-    if (dart.library.ffi) 'access/fs.dart'
-    if (dart.library.html) 'access/web.dart';
+import 'access/fs.dart';
 import 'access/abstract.dart';
 
 class AsyncDatabase {
@@ -84,6 +82,10 @@ class AsyncDatabase {
   Future<ResultSet> select(String sql,
       [List<Object?> parameters = const []]) async {
     return await sendCommand("select", body: FStatementParams(sql, parameters));
+  }
+
+  Future<int> store(FTransactionParams transaction) async {
+    return await sendCommand("store", body: transaction);
   }
 
   /// Closes this database and releases associated resources.
@@ -179,6 +181,7 @@ class AsyncDatabase {
     } catch (err) {
       print(err);
       db.execute("END;");
+      id = 0;
     }
     cmd.sendPort.send(AsyncDatabaseCommand(
       cmd.type,

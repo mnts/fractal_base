@@ -3,7 +3,6 @@ import 'package:fractal/types/file.dart';
 import 'package:path/path.dart';
 import 'package:sqlite3/common.dart';
 import 'access/abstract.dart';
-import 'access/native.dart';
 import 'fracs/stored.dart';
 import 'fractals/device.dart';
 import 'models/attr.dart';
@@ -17,7 +16,7 @@ class DBF {
   static bool isWeb = false;
   late FDBA db;
   DBF([String name = 'fractal']) {
-    db = NativeFDB(name);
+    db = constructDb(name);
 
     //db.execute('END;');
   }
