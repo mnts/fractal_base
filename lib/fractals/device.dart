@@ -67,11 +67,21 @@ class DeviceFractal extends NodeFractal with SigningMix {
         'eth': eth,
         ...signingMap,
       };
-/*
-  synch() {
-    super.synch();
+
+  @override
+  preload([type]) {
+    if (type == 'node') {
+      FileFractal.trace(
+        FileF.path,
+      );
+    }
+    return super.preload(type);
   }
-*/
+
+  @override
+  synch() {
+    return super.synch();
+  }
 
   @override
   MP toMap() => {

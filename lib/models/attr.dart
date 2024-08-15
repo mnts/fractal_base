@@ -21,11 +21,7 @@ class Attr extends NodeFractal {
           },
       attributes: <Attr>[
         Attr(
-          name: 'filter',
-          format: 'TEXT',
-        ),
-        Attr(
-          name: 'source',
+          name: 'format',
           format: 'TEXT',
         ),
       ]);
@@ -67,6 +63,8 @@ class Attr extends NodeFractal {
   @override
   String toString() => '$sqlDefinition ';
 
+  final List<String> options;
+
   Attr({
     required super.name,
     required this.format,
@@ -76,10 +74,11 @@ class Attr extends NodeFractal {
     this.canNull = false,
     this.isImmutable = false,
     this.skipCreate = false,
+    this.options = const [],
     this.def = '',
+    super.createdAt = 2,
     super.to,
   }) {
-    createdAt = 1;
     //owner = null;
     //hash = Hashed.make(ctrl.hashData());
   }
@@ -90,10 +89,17 @@ class Attr extends NodeFractal {
         isUnique = d['isUnique'],
         skipCreate = d['skipCreate'],
         isIndex = d['isIndex'],
+        options = d['options'] ?? [],
         isPrivate = d['isPrivate'],
         isImmutable = d['isImmutable'],
         canNull = d['canNull'],
         super.fromMap();
+
+  @override
+  MP toMap() => {
+        ...super.toMap(),
+        for (var a in ctrl.attributes) a.name: this[a.name],
+      };
 
   @override
   Object? operator [](String key) => switch (key) {

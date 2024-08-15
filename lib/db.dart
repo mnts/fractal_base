@@ -84,7 +84,7 @@ class DBF {
     );
     if (re.isEmpty) return null;
     final str = re.first['value'] as String;
-    return (str.isEmpty) ? re.first['numb'] : re.first['value'];
+    return (str.isEmpty) ? '${re.first['numb']}' : re.first['value'];
   }
 
   clear() async {

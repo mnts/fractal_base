@@ -231,7 +231,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
     //Map<String, Object?>? subWhere,
     MP? where,
     int limit = 1200,
-    Map<String, bool>? order,
+    Map<String, bool>? order, // = const {'created_at': true},
     bool includeSubTypes = false,
   }) async {
     //parents;
