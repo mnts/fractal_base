@@ -33,8 +33,13 @@ dbf.tables.firstWhere(
     ''');
     final cols = pragma.map((row) => row[1]);
     for (var attr in attributes) {
-      if (attr.isIndex && !cols.contains(attr.name)) {
-        _addIndex(attr);
+      final idxName = '${name}_${attr.name}';
+      if (attr.isIndex && !cols.contains(idxName)) {
+        await query(
+          'CREATE ${attr.isUnique ? 'UNIQUE' : ''} INDEX `$idxName` ON `$name`(`${attr.name}`)',
+        );
+
+        print('attr: $idxName is now index');
       }
     }
   }
@@ -90,7 +95,6 @@ dbf.tables.firstWhere(
   bool get _isMain => runtimeType == FractalCtrl;
 
   FStatementParams _insertion(FractalCtrl c, List<Object?> list) {
-    final l = c.attributes.isNotEmpty ? ',' : '';
     final ins = <(String, Object)>[];
     for (int i = 0; i < c.attributes.length; i++) {
       final attr = c.attributes[i];
@@ -99,33 +103,47 @@ dbf.tables.firstWhere(
       }
     }
 
-    return FStatementParams("""
+    if (!c._isMain) ins.add(('id', ''));
+
+    return FStatementParams(
+        """
 INSERT INTO `${c.name}` (
-  ${ins.map((attr) => "'${attr.$1}'").join(',')}${!c._isMain ? '${l}id_fractal' : ''}
+  ${ins.map((attr) => "'${attr.$1}'").join(',')}
 ) 
 VALUES (
-  ${ins.map((e) => '?').join(',')}${!c._isMain ? '$l?' : ''}
+  ${ins.map((e) => '?').join(',')}
 );
-  """, ins.map((i) => i.$2).toList());
+  """,
+        ins
+            .sublist(0, ins.length + ((c._isMain) ? 0 : -1))
+            .map((i) => i.$2)
+            .toList());
   }
 
   Future<TableF> _initTable() async {
-    final l = attributes.isNotEmpty ? ',' : '';
+    final fk = await db.select('''
+      PRAGMA foreign_keys;
+    ''');
+
+    final defs = <String>[
+      "id INTEGER PRIMARY KEY",
+      for (var a in attributes.where((f) => !f.skipCreate)) a.sqlDefinition,
+      if (runtimeType != FractalCtrl)
+        //'id_fractal' INTEGER NOT NULL,
+        """
+      FOREIGN KEY(id) REFERENCES fractal(id) ON DELETE CASCADE
+      """,
+      /*
+      for (var a in attributes.where((f) => f.isReference))
+        "FOREIGN KEY(`${a.name}`) REFERENCES fractal(id) ON DELETE CASCADE"
+      */
+    ];
 
     //_columns();
 
     //final ctrl = controllers.firstOrNull;
-    await query("""
-CREATE TABLE IF NOT EXISTS `$name` (
-  id INTEGER PRIMARY KEY,
-  ${attributes.where((f) => !f.skipCreate).map((attr) => attr.sqlDefinition).join(',\n')}
-  ${runtimeType != FractalCtrl ? """$l
-    'id_fractal' INTEGER NOT NULL,
-    FOREIGN KEY(id_fractal) REFERENCES fractal(id) ON DELETE CASCADE
-  """ : ""}
-)
-    """);
-    print('Create table `$name`(${attributes.join(',')})');
+    await query("CREATE TABLE IF NOT EXISTS `$name` (${defs.join(',\n')})");
+    print('Create table `$name`');
     return TableF(
       name: name,
       attributes: attributes,
@@ -145,10 +163,6 @@ CREATE TABLE IF NOT EXISTS `$name` (
     }
     return true;
   }
-
-  Future<bool> _addIndex(Attr attr) async => await query(
-        'CREATE ${attr.isUnique ? 'UNIQUE' : ''} INDEX `${attr.name}` ON `$name`(`${attr.name}`)',
-      );
 
   Future<bool> _addColumn(Attr attr) async {
     return await query('ALTER TABLE `$name` ADD ${attr.sqlDefinition}');
@@ -183,6 +197,12 @@ CREATE TABLE IF NOT EXISTS `$name` (
                   'gte' => '$key >= ${_str(e.value)}',
                   'lt' => '$key < ${_str(e.value)}',
                   'lte' => '$key <= ${_str(e.value)}',
+                  'in' => '$key IN(${e.value.map(
+                        (s) => _str(s),
+                      ).join(',')})',
+                  'nin' => '$key NOT IN(${e.value.map(
+                        (s) => _str(s),
+                      ).join(',')})',
                   _ => '',
                 })
             .join(' AND '),
@@ -231,8 +251,8 @@ CREATE TABLE IF NOT EXISTS `$name` (
     //Map<String, Object?>? subWhere,
     MP? where,
     int limit = 1200,
-    Map<String, bool>? order, // = const {'created_at': true},
-    bool includeSubTypes = false,
+    Map<String, dynamic> order = const {'created_at': true},
+    String group = '',
   }) async {
     //parents;
     final MP w = {
@@ -244,7 +264,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
       "SELECT ${fields?.join(',') ?? '*'}, fractal.id AS id FROM `$name`",
     ];
 
-    for (final ctrl in controllers) {
+    for (final ctrl in [...controllers, Fractal.controller]) {
       MP tableWhere = {};
       w.removeWhere((key, value) {
         if (ctrl.attributes.any((attr) => attr.name == key)) {
@@ -262,11 +282,12 @@ CREATE TABLE IF NOT EXISTS `$name` (
           : '';
       q.add('''
         INNER JOIN `${ctrl.name}` ON 
-        `${ctrl.name}`.id_fractal = `$name`.id_fractal
+        `${ctrl.name}`.id = `$name`.id
         ${sw.isNotEmpty ? 'AND $sw' : ''}
       ''');
     }
 
+    /*
     String fw = '';
     if (w.remove('id') case Object idv) {
       fw = makeWhere(
@@ -275,7 +296,6 @@ CREATE TABLE IF NOT EXISTS `$name` (
       );
     }
 
-    /*
     if (w.isNotEmpty == true) {
       w.removeWhere((key, value) {
         q.add('''
@@ -293,7 +313,6 @@ CREATE TABLE IF NOT EXISTS `$name` (
         return true;
       });
     }
-    */
 
     q.add('''
       INNER JOIN fractal ON 
@@ -301,6 +320,7 @@ CREATE TABLE IF NOT EXISTS `$name` (
       ${fw.isNotEmpty ? 'AND $fw' : ''}
       ${includeSubTypes ? '' : "AND fractal.type = '$name'"}
     ''');
+    */
 
     if (w.entries.isNotEmpty) {
       final wH = makeWhere(w, this);
@@ -309,10 +329,17 @@ CREATE TABLE IF NOT EXISTS `$name` (
 
     limit = limit > 0 ? min(limit, maxLimit) : maxLimit;
 
-    if (order != null) {
+    if (order.isNotEmpty) {
       q.add('ORDER BY');
       order.forEach((key, v) {
         q.add('`$key` ${v ? 'DESC' : 'ASC'}');
+      });
+    }
+
+    if (group.isNotEmpty) {
+      q.add('GROUP BY');
+      order.forEach((key, v) {
+        q.add('`$group`');
       });
     }
 

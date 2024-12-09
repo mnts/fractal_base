@@ -38,9 +38,11 @@ class Attr extends NodeFractal {
   final bool isUnique;
   final bool isIndex;
   final bool isPrivate;
+  final bool isReference;
   final bool canNull;
   final bool skipCreate;
 
+  /*
   String get sqlType => switch (type) {
         (int) => 'INTEGER',
         (double) => 'REAL',
@@ -50,6 +52,7 @@ class Attr extends NodeFractal {
             'Unknown type',
           ),
       };
+      */
 
   Object fromString(String val) => switch (format) {
         'INTEGER' => int.parse(val),
@@ -73,10 +76,11 @@ class Attr extends NodeFractal {
     this.isPrivate = false,
     this.canNull = false,
     this.isImmutable = false,
+    this.isReference = false,
     this.skipCreate = false,
     this.options = const [],
     this.def = '',
-    super.createdAt = 2,
+    super.kind = FKind.eternal,
     super.to,
   }) {
     //owner = null;
@@ -85,26 +89,29 @@ class Attr extends NodeFractal {
 
   Attr.fromMap(super.d)
       : format = d['format'],
-        def = d['def'],
-        isUnique = d['isUnique'],
-        skipCreate = d['skipCreate'],
-        isIndex = d['isIndex'],
+        def = "${d['def'] ?? ''}",
+        isUnique = d['isUnique'] ?? false,
+        skipCreate = d['skipCreate'] ?? false,
+        isIndex = d['isIndex'] ?? false,
         options = d['options'] ?? [],
-        isPrivate = d['isPrivate'],
-        isImmutable = d['isImmutable'],
-        canNull = d['canNull'],
+        isPrivate = d['isPrivate'] ?? false,
+        isReference = d['isReference'] ?? false,
+        isImmutable = d['isImmutable'] ?? false,
+        canNull = d['canNull'] ?? false,
         super.fromMap();
-
-  @override
-  MP toMap() => {
-        ...super.toMap(),
-        for (var a in ctrl.attributes) a.name: this[a.name],
-      };
 
   @override
   Object? operator [](String key) => switch (key) {
         'format' => format,
-        'widget' => 'input',
+        'widget' => super[key] ?? 'input',
+        'def' => def,
+        'isUnique' => isUnique,
+        'skipCreate' => skipCreate,
+        'isIndex' => isIndex,
+        'options' => options,
+        'isPrivate' => isPrivate,
+        'isImmutable' => isImmutable,
+        'canNull' => canNull,
         _ => super[key],
       };
 }

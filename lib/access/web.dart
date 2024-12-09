@@ -20,6 +20,7 @@ class WebFDB extends FDBA {
     final fs = await IndexedDbFileSystem.open(
       dbName: name,
     );
+
     sqlite3.registerVirtualFileSystem(
       fs,
       makeDefault: true,

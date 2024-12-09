@@ -1,4 +1,3 @@
-import 'package:fractal/utils/random.dart';
 import 'package:signed_fractal/signed_fractal.dart';
 
 class DeviceCtrl<T extends DeviceFractal> extends NodeCtrl<T> {
@@ -56,10 +55,10 @@ class DeviceFractal extends NodeFractal with SigningMix {
     map.complete(name, this);
   }
 
-  DeviceFractal.fromMap(MP d)
+  DeviceFractal.fromMap(super.d)
       : eth = d['eth'],
         keyPair = SigningMix.signingFromMap(d),
-        super.fromMap(d) {
+        super.fromMap() {
     map.complete(name, this);
   }
 
@@ -77,15 +76,4 @@ class DeviceFractal extends NodeFractal with SigningMix {
     }
     return super.preload(type);
   }
-
-  @override
-  synch() {
-    return super.synch();
-  }
-
-  @override
-  MP toMap() => {
-        ...super.toMap(),
-        ..._map,
-      };
 }

@@ -26,7 +26,7 @@ class DBF {
 
     //db = SqliteDatabase(path: 'test.db');
 
-    await db.query('PRAGMA foreign_keys=OFF;');
+    await db.query('PRAGMA foreign_keys=ON;');
 
     //clear();
     if (tables
