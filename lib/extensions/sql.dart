@@ -62,25 +62,20 @@ dbf.tables.firstWhere(
         Fractal.controller,
         Fractal.controller.listValues(map),
       ),
-
-      //query(INSERT OR REPLACE INTO variables VALUES ('fid', last_insert_rowid()););
-      //final ctrls = controllers;
       ...controllers.reversed.map(
         (ctrl) => _insertion(
           ctrl,
           ctrl.listValues(map),
         ),
       ),
-
       _insertion(this, listValues(map)),
     ]);
 
-    if (await db.store(transaction) case int id) {
-      print('stored $name');
-      print(map);
-      print('#$id');
-      return id;
-    }
+    final id = await db.store(transaction);
+    print('store $name');
+    print(map);
+    print('#$id');
+    return id;
 
     //'INSERT INTO $name (${map.keys.join(',')}) VALUES (${map.keys.map((e) => '?').join(',')}) ON CONFLICT(id) DO UPDATE SET ${map.keys.map((e) => '$e=?').join(',')}',
     /*
@@ -89,7 +84,6 @@ dbf.tables.firstWhere(
     );
     print(map);
     */
-    return 0;
   }
 
   bool get _isMain => runtimeType == FractalCtrl;
@@ -134,7 +128,7 @@ VALUES (
       FOREIGN KEY(id) REFERENCES fractal(id) ON DELETE CASCADE
       """,
       /*
-      for (var a in attributes.where((f) => f.isReference))
+      for (var a in attributes.where((f) => f.format == FormatF.reference))
         "FOREIGN KEY(`${a.name}`) REFERENCES fractal(id) ON DELETE CASCADE"
       */
     ];
@@ -188,7 +182,7 @@ VALUES (
       String key = "`$pre`.`${w.key}`";
       final attr = attributes.firstWhere((a) => a.name == w.key);
       return switch (w.value) {
-        List l => '$key IN(${l.map(
+        Iterable l => '$key IN(${l.map(
               (s) => _str(s),
             ).join(',')})',
         Map m => m.entries
@@ -240,7 +234,7 @@ VALUES (
 
   Future<bool> update(MP m, int id) async {
     await query(
-      'UPDATE `$name` SET ${m.keys.map((e) => '$e = ?').join(',')} WHERE id_fractal=?',
+      'UPDATE `$name` SET ${m.keys.map((e) => '$e = ?').join(',')} WHERE id=?',
       [...m.values, id],
     );
     return true;
@@ -253,7 +247,7 @@ VALUES (
     int limit = 1200,
     Map<String, dynamic> order = const {'created_at': true},
     String group = '',
-  }) async {
+  }) {
     //parents;
     final MP w = {
       ...?where,
@@ -348,12 +342,10 @@ VALUES (
       ''');
 
     final query = q.join('\n');
-    //print(query);
-    final rows = await db.select(
+    //print(query.replaceAll("\n", " "));
+    return db.select(
       query,
     );
-
-    return rows;
   }
 
   static const maxLimit = 1000;

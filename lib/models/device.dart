@@ -1,3 +1,4 @@
+import 'package:fractal/utils/random.dart';
 import 'package:signed_fractal/signed_fractal.dart';
 
 class DeviceCtrl<T extends DeviceFractal> extends NodeCtrl<T> {
@@ -16,14 +17,11 @@ class DeviceFractal extends NodeFractal with SigningMix {
   static final active = Frac<DeviceFractal?>(null);
 
   static final controller = DeviceCtrl(
-    make: (d) => switch (d) {
-      MP() => DeviceFractal.fromMap(d),
-      Object() || null => throw ('wrong event type')
-    },
+    make: (d) => DeviceFractal.fromMap(d),
     attributes: [
       Attr(
         name: 'eth',
-        format: 'TEXT',
+        format: FormatF.text,
         canNull: true,
       ),
       ...SigningMix.attributes,
@@ -34,8 +32,29 @@ class DeviceFractal extends NodeFractal with SigningMix {
   @override
   DeviceCtrl get ctrl => controller;
 
-  static init() async {
-    controller.init();
+  static Future init() async {
+    await controller.init();
+    return;
+  }
+
+  static Future<DeviceFractal> initMy() async {
+    var name = (await DBF.main.getVar('device'));
+    if (name == null) {
+      name = getRandomString(8);
+      await DBF.main.setVar('device', name);
+    }
+
+    final map = EventFractal.map.map;
+
+    map['device'] = DeviceFractal.my = await DeviceFractal.controller.put({
+      'name': name,
+      'kind': FKind.eternal.index,
+      'folder': FileF.path,
+      'pubkey': '',
+      'sync_at': 1,
+    });
+    await DeviceFractal.my.synch();
+    return DeviceFractal.my;
   }
 
   late final KeyPair keyPair;
@@ -43,7 +62,7 @@ class DeviceFractal extends NodeFractal with SigningMix {
 
   String? eth;
 
-  static final map = MapF<DeviceFractal>();
+  static final map = MapEvF<DeviceFractal>();
 
   DeviceFractal({
     this.eth,
@@ -68,12 +87,18 @@ class DeviceFractal extends NodeFractal with SigningMix {
       };
 
   @override
+  int get decideSync => 2;
+
+  @override
   preload([type]) {
+    /*
     if (type == 'node') {
       FileFractal.trace(
         FileF.path,
       );
     }
+    */
+
     return super.preload(type);
   }
 }

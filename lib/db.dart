@@ -4,7 +4,7 @@ import 'package:path/path.dart';
 import 'package:sqlite3/common.dart';
 import 'access/abstract.dart';
 import 'fracs/stored.dart';
-import 'fractals/device.dart';
+import 'models/device.dart';
 import 'models/attr.dart';
 import 'models/table.dart';
 import 'access/unsupported.dart'

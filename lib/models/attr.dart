@@ -1,5 +1,13 @@
 import 'package:signed_fractal/signed_fractal.dart';
 
+enum FormatF {
+  any,
+  text,
+  integer,
+  real,
+  reference,
+}
+
 class AttrCtrl<T extends Attr> extends NodeCtrl<T> {
   AttrCtrl({
     super.name = 'attribute',
@@ -16,15 +24,30 @@ class Attr extends NodeFractal {
   static final controller = AttrCtrl(
       extend: NodeFractal.controller,
       make: (d) => switch (d) {
-            MP() => Attr.fromMap(d),
+            MP() => Attr.fromMap(
+                d,
+                setup: intToBits(d['setup'] ?? 0, bitLength: 8),
+              ),
             _ => throw ('wrong'),
           },
       attributes: <Attr>[
         Attr(
           name: 'format',
-          format: 'TEXT',
+          format: FormatF.integer,
+        ),
+        Attr(
+          name: 'def',
+          format: FormatF.text,
+        ),
+        Attr(
+          name: 'setup',
+          format: FormatF.integer,
         ),
       ]);
+
+  @override
+  get uis => ui;
+  static var ui = <String>[];
 
   @override
   AttrCtrl get ctrl => controller;
@@ -32,15 +55,16 @@ class Attr extends NodeFractal {
   @override
   String get type => 'attribute';
 
-  final String format;
+  final FormatF format;
   final String def;
   final bool isImmutable;
   final bool isUnique;
   final bool isIndex;
   final bool isPrivate;
-  final bool isReference;
   final bool canNull;
   final bool skipCreate;
+
+  List<bool> bits = [];
 
   /*
   String get sqlType => switch (type) {
@@ -55,18 +79,25 @@ class Attr extends NodeFractal {
       */
 
   Object fromString(String val) => switch (format) {
-        'INTEGER' => int.parse(val),
-        'REAL' => double.parse(val),
-        _ => val,
+        FormatF.integer => int.tryParse(val) ?? 0,
+        FormatF.real => double.tryParse(val) ?? 0.0,
+        _ => val
+      };
+
+  String get formatStr => switch (format) {
+        FormatF.text => "TEXT",
+        FormatF.integer => "INTEGER",
+        FormatF.real => "REAL",
+        _ => "INTEGER",
       };
 
   String get sqlDefinition =>
-      "'$name' $format ${!canNull ? 'DEFAULT \'$def\' ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
+      "'$name' $formatStr ${!canNull ? 'DEFAULT \'$def\' ' : ''} ${isUnique ? 'UNIQUE' : ''} ${canNull ? ' ' : 'NOT '}NULL";
 
   @override
   String toString() => '$sqlDefinition ';
 
-  final List<String> options;
+  //final List<String> options;
 
   Attr({
     required super.name,
@@ -76,42 +107,44 @@ class Attr extends NodeFractal {
     this.isPrivate = false,
     this.canNull = false,
     this.isImmutable = false,
-    this.isReference = false,
     this.skipCreate = false,
-    this.options = const [],
+    //this.options = const [],
     this.def = '',
-    super.kind = FKind.eternal,
+    super.d,
+    super.kind = FKind.system,
     super.to,
   }) {
     //owner = null;
     //hash = Hashed.make(ctrl.hashData());
   }
 
-  Attr.fromMap(super.d)
-      : format = d['format'],
+  Attr.fromMap(
+    super.d, {
+    required List<bool> setup,
+  })  : bits = intToBits(d['setup'] ?? 0),
+        format = FormatF.values[d['format'] ?? 0],
         def = "${d['def'] ?? ''}",
-        isUnique = d['isUnique'] ?? false,
-        skipCreate = d['skipCreate'] ?? false,
-        isIndex = d['isIndex'] ?? false,
-        options = d['options'] ?? [],
-        isPrivate = d['isPrivate'] ?? false,
-        isReference = d['isReference'] ?? false,
-        isImmutable = d['isImmutable'] ?? false,
-        canNull = d['canNull'] ?? false,
+        isImmutable = setup[0],
+        isUnique = setup[1],
+        isIndex = setup[2],
+        isPrivate = setup[3],
+        canNull = setup[4],
+        skipCreate = setup[5],
         super.fromMap();
 
   @override
   Object? operator [](String key) => switch (key) {
-        'format' => format,
-        'widget' => super[key] ?? 'input',
+        'format' => format.index,
+        'setup' => bitsToInt([
+            isImmutable,
+            isUnique,
+            isIndex,
+            isPrivate,
+            canNull,
+            skipCreate,
+          ]),
         'def' => def,
-        'isUnique' => isUnique,
-        'skipCreate' => skipCreate,
-        'isIndex' => isIndex,
-        'options' => options,
-        'isPrivate' => isPrivate,
-        'isImmutable' => isImmutable,
-        'canNull' => canNull,
+        'ui' => super[key] ?? 'input',
         _ => super[key],
       };
 }

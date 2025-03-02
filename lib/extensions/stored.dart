@@ -11,15 +11,4 @@ extension FractalStoredC on FractalC {
 
   Future<bool> query(String sql, [List<Object?> parameters = const []]) =>
       db.query(sql, parameters);
-
-  /*
-  CommonPreparedStatement prepare(
-    String sql, [
-    List<Object?> parameters = const [],
-  ]) {
-    //print('prepare');
-    //print(sql);
-    return db.prepare(sql);
-  }
-  */
 }
